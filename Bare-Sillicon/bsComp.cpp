@@ -9,6 +9,7 @@
 #include "bs/bs_IR/ir_stage.hpp"
 #include "bs/bs_common/antlr/bsLexer.h"
 #include "bs/bs_common/antlr/bsParser.h"
+#include "bs/bs_x86/genX86.hpp"
 
 /*
 
@@ -88,19 +89,12 @@ int main()
     int g_var = 42 * 2 + 1;
 
     uint factorial(uint n) {
-		if (n <= 1) {
-			return 1;
-		} else {
-			return n * factorial(n - 1);
-		}
+		return n;
 	}
 
     int print(int x) {
-		uint y = 12 % 5;
-        for(i from 1 to [5:4s]){
-            y += factorial(i);  
-        }
-        return y;
+		int a = 2 + 10;
+        return a;
 	}
 )";
 	antlr4::ANTLRInputStream istr(input);
@@ -137,7 +131,12 @@ int main()
 
     irep.OptimizationPass1();
     
-    std::cout << irep.ConvertToString();
+    std::cout << irep.ConvertToString() << "\n\n";
+
+    bsX86::X86Generator x86gen;
+    x86gen.generateX86(irep);
+
+    std::cout << x86gen.getOutput();
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

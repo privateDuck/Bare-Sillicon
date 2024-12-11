@@ -60,6 +60,12 @@
     <ClCompile Include="bs\bs_common\antlr\bsVisitor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="bs\bs_x86\x86_common.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="bs\bs_x86\genX86.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bs\bs_common\symbols.hpp">
@@ -111,6 +117,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="bs\bs_common\antlr\common_data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="bs\bs_x86\genX86.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="bs\bs_x86\x86_common.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

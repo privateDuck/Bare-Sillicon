@@ -24,11 +24,12 @@ void IR::RemoveUnreachableCode()
 		const TAC& tac = tacs[i];
 
 		if (tac.oper == IROpertion::GOTO) passedUncondJump = true;
+		else if (tac.oper == IROpertion::DECL_FN_PARAM) passedReturn = false;
+		else if (tac.oper == IROpertion::DECL_LABEL) passedUncondJump = false;
+	
 		if (passedReturn || passedUncondJump) markers.insert(i);
 		
 		if (tac.oper == IROpertion::RETURN) passedReturn = true;
-		else if (tac.oper == IROpertion::DECL_FN_PARAM) passedReturn = false;
-		else if (tac.oper == IROpertion::DECL_LABEL) passedUncondJump = false;
 	}
 }
 
@@ -51,6 +52,17 @@ void IR::PropagateConstants()
 			auto& vt = tryAddTrackedValue(tac.arg1, i);
 			vt.value = tac.arg2.value;
 			vt.isConst = checkArgConst(tac.arg2);
+		}
+		else if (
+			tac.oper == IROpertion::LOAD_PTR || 
+			tac.oper == IROpertion::PTR_RVAL || 
+			tac.oper == IROpertion::CALL || 
+			tac.oper == IROpertion::DECL_FN_PARAM
+		) 
+		{
+			auto& vt = tryAddTrackedValue(tac.arg1, i);
+			vt.value = 0;
+			vt.isConst = false;
 		}
 		else if (tac.oper == IROpertion::DECL_FN_PARAM) {
 			auto& vt = tryAddTrackedValue(tac.arg1, i);
@@ -126,6 +138,13 @@ void IR::TrackVariables()
 			if (tac.arg2.argType != IRARG::VALUE) {
 				auto& vt = getTrackedValue(tac.arg2);
 				vt.wasUsed = true;
+				vt.removeLastAssignment();
+			}
+		}
+		else if (tac.oper == IROpertion::RETURN) {
+			if (tac.arg1.argType != IRARG::VALUE) {
+				auto& vt = getTrackedValue(tac.arg1);
+				vt.wasUsed = !vt.isConst;
 				vt.removeLastAssignment();
 			}
 		}
@@ -208,6 +227,11 @@ std::string IR::ConvertToString() const
 	}
 	istr.unindent();
 	return istr.str();
+}
+
+std::vector<TAC> IR::getTACs() const
+{
+	return tacs;
 }
 
 void IR::AddUnaryMinus(TAC_ARG arg)

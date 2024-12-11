@@ -150,6 +150,8 @@
     <ClCompile Include="bs\bs_IR\ir.cpp" />
     <ClCompile Include="bs\bs_IR\ir_common.cpp" />
     <ClCompile Include="bs\bs_IR\ir_stage.cpp" />
+    <ClCompile Include="bs\bs_x86\genX86.cpp" />
+    <ClCompile Include="bs\bs_x86\x86_common.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bs\bs_common\antlr\bsBaseListener.h" />
@@ -169,6 +171,8 @@
     <ClInclude Include="bs\bs_IR\ir.hpp" />
     <ClInclude Include="bs\bs_IR\ir_common.hpp" />
     <ClInclude Include="bs\bs_IR\ir_stage.hpp" />
+    <ClInclude Include="bs\bs_x86\genX86.hpp" />
+    <ClInclude Include="bs\bs_x86\x86_common.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -40,6 +40,7 @@ namespace bsc {
 		void OptimizeDeclarations();
 
 		std::string ConvertToString() const;
+		std::vector<TAC> getTACs() const;
 
 		// arg: operator argument
 		void AddUnaryMinus(TAC_ARG arg);
