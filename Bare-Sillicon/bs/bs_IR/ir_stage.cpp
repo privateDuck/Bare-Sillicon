@@ -27,11 +27,11 @@ std::any IRGen::visitTypedef(bsParser::TypedefContext* context)
 std::any IRGen::visitGlobal(bsParser::GlobalContext* context)
 {
     Type tp = std::any_cast<Type>(visit(context->udef_type()));
-    symTable.AddGlobal(context->ID()->getText(), tp, false, 0, nullptr);
+    symTable.AddGlobal(context->ID()->getText(), tp, false, context->expr()->eValue, nullptr);
     const auto& sym = symTable.GetVariable(context->ID()->getText());
 
     out << "globl: " << getTypeName(tp) << ' ' << sym.name << " = ";
-    auto trr = visit(context->init_element());
+    // auto global_expr_result = visitExpr(context->expr()); no need to visit expr, it's already evaluated
     out.endline();
 
     ir.AddDeclareGlobal(sym.name, sym.eValue, tp); // Add evaluated value
@@ -222,7 +222,7 @@ std::any IRGen::visitGoto_label(bsParser::Goto_labelContext* context)
     out << context->ID()->getText() << ':';
     out.endline();
     out.indent();
-    ir.AddGotoLabel(context->ID()->getText());
+    ir.AddDeclareLabel(context->ID()->getText());
     return std::any();
 }
 
@@ -400,6 +400,43 @@ std::any IRGen::visitFor1(bsParser::For1Context* context)
 
 std::any IRGen::visitFor2(bsParser::For2Context* context)
 {
+    std::string loopLabel = GetLabel();
+    std::string endLabel = GetLabel();
+    lastLabel = loopLabel;
+    nextLabel = endLabel;
+
+    std::string sym_name = context->ID()->getText();
+
+    TAC_ARG argS, argE;
+    if (!context->start_val->isConst)
+        argS = visitExpr(context->start_val);
+    else {
+        auto cexpr = TAC_ARG::getAsConstant(context->start_val->eValue, Type::INT_t);
+        argS = GetTemporaryTAC(Type::INT_t);
+        ir.AddBinaryOp(argS, cexpr, TAC_ARG::getAsConstant(0, Type::INT_t), IROpertion::ADD);
+    }
+
+    if (!context->end_val->isConst)
+        argE = visitExpr(context->end_val);
+    else
+        argE = TAC_ARG::getAsConstant(context->end_val->eValue, Type::INT_t);
+
+    symTable.AddTemporaryResident(sym_name, Type::INT_t, context->start_val->isConst, context->start_val->eValue, argS.value);
+    
+    ir.AddDeclareLabel(loopLabel);
+    
+    TAC_ARG res = GetTemporaryTAC(Type::INT_t);
+    ir.AddBinaryOp(res, argS, argE, bsc::IROpertion::EQUAL);
+    ir.AddGotoIfTrue(res, endLabel);
+    FreeIfTemporary(res);
+
+    
+    visit(context->statement());
+
+    ir.AddBinaryOp(argS, argS, TAC_ARG::getAsConstant(1, Type::INT_t), IROpertion::ADD);
+    ir.AddDeclareLabel(endLabel);
+    FreeIfTemporary(argS);
+    FreeIfTemporary(argE);
     return std::any();
 }
 
@@ -513,7 +550,8 @@ std::any IRGen::visitID(bsParser::IDContext* context)
     std::string id = context->ID()->getText();
     auto &vi = symTable.GetVariable(id);
     TAC_ARG arg;
-    arg.setAsVariable(vi.name, vi.type);
+    if (vi.isTemporaryResident) arg.setAsIRTemporary(TAC_Temp(vi.scopeIndex), vi.type);
+	else arg.setAsVariable(vi.name, vi.type);
     return arg;
 }
 
@@ -1180,6 +1218,11 @@ Type IRGen::getSymbolType(const std::string& name)
 
 TAC_ARG IRGen::visitExpr(bsParser::ExprContext* ctx)
 {
+    if (ctx->isConst) {
+        TAC_ARG arg = GetTemporaryTAC((Type)ctx->eType);
+        arg.setAsConstant(ctx->eValue, (Type)ctx->eType);
+        return arg;
+    }
     return std::any_cast<TAC_ARG>(visit(ctx));
 }
 

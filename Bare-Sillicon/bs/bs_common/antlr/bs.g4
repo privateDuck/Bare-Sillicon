@@ -8,7 +8,7 @@ declaration     : global
                 ;
 
 typedef             : TYPEDEF type ID ';';
-global              : udef_type ID '=' init_element ';';
+global              : udef_type ID '=' expr ';';
 function            : udef_type ID '(' params ? ')' block;
 params              : param_decl (',' param_decl)*;
 param_decl          : udef_type ID;
@@ -33,11 +33,11 @@ statement       returns [ bool isDead = false]
                 ;
 
 var_decl            returns [bool isDead = false]: udef_type ID '=' expr ';';
-array_decl          : udef_type ID '[' SIGNED_INT ']' ('=' array_initializer)? ';';
+array_decl          : udef_type ID '[' UNSIGNED_INT ']' ('=' array_initializer)? ';';
 array_initializer   : '{' init_element (',' init_element)* '}';
-init_element        : atom=(SIGNED_INT | UNSIGNED_INT)      #InitIntLiteral
-                    | CHAR                                  #InitCharLiteral
-                    | STRING_LITERAL                        #InitStringLiteral
+init_element        : atom=UNSIGNED_INT      #InitIntLiteral
+                    | CHAR                   #InitCharLiteral
+                    | STRING_LITERAL         #InitStringLiteral
                     ;
 
 goto_label      : ID ':';
@@ -141,10 +141,6 @@ STRING_LITERAL  : UNTERMINATED_STRING_LITERAL '"';
 UNTERMINATED_STRING_LITERAL : '"' (~["\\\r\n] | '\\' (. | EOF))*;
 
 UNSIGNED_INT    : HEX | BIN | DECIMAL;
-SIGNED_INT      :   HEX
-                |   BIN
-                |   DECIMAL
-                ;
 
 fragment SIGN
     :   PLUS | MINUS

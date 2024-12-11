@@ -26,16 +26,10 @@ std::any StaticVisitor::visitTypedef(bsParser::TypedefContext* context)
 std::any StaticVisitor::visitGlobal(bsParser::GlobalContext* context)
 {
     if (!scopeTable.HasVariable(context->ID()->getText())) {
-        initLiteral il = std::any_cast<initLiteral>(visit(context->init_element()));
-        if (il.type == LITERAL_TYPE::INT) {
-			scopeTable.AddGlobal(context->ID()->getText(), Type::INT_t, true, il.i, nullptr);
-		}
-        else if (il.type == LITERAL_TYPE::CHAR) {
-			scopeTable.AddGlobal(context->ID()->getText(), Type::CHAR_t, true, il.c, nullptr);
-		}
-        else {
-			scopeTable.AddGlobal(context->ID()->getText(), Type::UINT_t, true, _stringTable.size() - 1, nullptr);
-		}
+        auto global_expr_result = visitExpr(context->expr());
+        if (!global_expr_result.isConstExpr) logger.LogError(context, "Global variable must be initialized with a constant expression");
+
+        scopeTable.AddGlobal(context->ID()->getText(), global_expr_result.type, global_expr_result.isConstExpr, global_expr_result.value, nullptr);
 	}
     else {
         logger.LogError(context, "Redifinition of global variable: {}", context->ID()->getText());
@@ -194,7 +188,7 @@ std::any StaticVisitor::visitVar_decl(bsParser::Var_declContext* context)
 std::any StaticVisitor::visitArray_decl(bsParser::Array_declContext* context)
 {
     Type t = std::any_cast<Type>(visit(context->udef_type()));
-    int size = std::stoll(context->SIGNED_INT()->getText());
+    int size = std::stoll(context->UNSIGNED_INT()->getText());
     logger.CheckError(size <= 0, context, "Array size must be greater than 0");
     
     scopeTable.AddCurrent(context->ID()->getText(), t, false, 0, nullptr);

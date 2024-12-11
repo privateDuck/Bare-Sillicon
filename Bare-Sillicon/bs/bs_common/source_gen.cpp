@@ -3,7 +3,7 @@
 std::any SourceGen::visitGlobal(bsParser::GlobalContext* context)
 {
 	out << context->ID()->getText() << " = ";
-	visit(context->init_element());
+	out << context->expr()->eValue;
 	out << ';';
 	out.endline();
     return std::any();
@@ -142,7 +142,7 @@ std::any SourceGen::visitVar_decl(bsParser::Var_declContext* context)
 std::any SourceGen::visitArray_decl(bsParser::Array_declContext* context)
 {
 	visit(context->udef_type());
-	out << context->ID()->getText() << '[' << context->SIGNED_INT()->getText() << ']';
+	out << context->ID()->getText() << '[' << context->UNSIGNED_INT()->getText() << ']';
 	if (context->array_initializer())
 	{
 		visit(context->array_initializer());

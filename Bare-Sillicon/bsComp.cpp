@@ -85,13 +85,22 @@ int main() {
 int main()
 {
     std::string input = R"(
+    int g_var = 42 * 2 + 1;
+
+    uint factorial(uint n) {
+		if (n <= 1) {
+			return 1;
+		} else {
+			return n * factorial(n - 1);
+		}
+	}
+
     int print(int x) {
-		int y = 2*x+1;
-        y = 21&2; 
-        y += x;
-        int z = y + x;
-        [y:4u] = x;
-		return -1;
+		uint y = 12 % 5;
+        for(i from 1 to [5:4s]){
+            y += factorial(i);  
+        }
+        return y;
 	}
 )";
 	antlr4::ANTLRInputStream istr(input);
@@ -108,7 +117,7 @@ int main()
 	ir.visit(program);
 
     bsc::IR& irep = ir.GetIRObject();
-    irep.OptimizationPass1();
+
 	/*SourceGen sg;
 	sg.EnableConstantPropogation();
 	sg.EnableConstantFolding();
@@ -122,9 +131,12 @@ int main()
 
 	std::cout << sa.GetLogs() << "\n\n";
 
-	std::cout << ir.GetIR() << "\n\n";
+	std::cout << irep.ConvertToString() << "\n\n";
 	
 	std::cout << ir.GetLogs() << "\n\n";
+
+    irep.OptimizationPass1();
+    
     std::cout << irep.ConvertToString();
 }
 

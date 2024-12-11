@@ -5,13 +5,31 @@ namespace bsc
 {
 void IR::OptimizationPass1()
 {
-	// Remove unreachable code first. 
 	// Change grammar to eliminate signed number matching
-	//OptimizeDeclarations();
+	// OptimizeDeclarations();
+	RemoveUnreachableCode();
+	RemoveMarkedOperations();
 	PropagateConstants();
 	TrackVariables();
 	DeadCodeElimination();
 	RemoveMarkedOperations();
+}
+
+void IR::RemoveUnreachableCode()
+{
+	bool passedReturn = false, passedUncondJump = false;
+
+	for (size_t i = 0; i < tacs.size(); i++)
+	{
+		const TAC& tac = tacs[i];
+
+		if (tac.oper == IROpertion::GOTO) passedUncondJump = true;
+		if (passedReturn || passedUncondJump) markers.insert(i);
+		
+		if (tac.oper == IROpertion::RETURN) passedReturn = true;
+		else if (tac.oper == IROpertion::DECL_FN_PARAM) passedReturn = false;
+		else if (tac.oper == IROpertion::DECL_LABEL) passedUncondJump = false;
+	}
 }
 
 void IR::PropagateConstants()
@@ -121,18 +139,6 @@ void IR::DeadCodeElimination()
 	for (const auto& [index, tracker] : valueUsageMap) {
 		std::copy(tracker.assignments.begin(), tracker.assignments.end(), std::inserter(markers, markers.end()));
 		if (!tracker.wasUsed && tracker.valueType == IRARG::VARIABLE) std::copy(tracker.initialization.begin(), tracker.initialization.end(), std::inserter(markers, markers.end()));
-	}
-
-	// Remove unreachable code
-	for (size_t i = 0; i < tacs.size(); i++)
-	{
-		const TAC& tac = tacs[i];
-		if (tac.oper == IROpertion::RETURN) passedReturn = true;
-		else if (tac.oper == IROpertion::DECL_FN_PARAM) passedReturn = false;
-		else if (tac.oper == IROpertion::GOTO) passedUncondJump = true;
-		else if (tac.oper == IROpertion::DECL_LABEL) passedUncondJump = false;
-
-		if (passedReturn || passedUncondJump) markers.insert(i);
 	}
 }
 

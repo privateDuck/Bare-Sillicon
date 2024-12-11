@@ -23,8 +23,8 @@ public:
     FOR = 51, RETURN = 52, BREAK = 53, CONTINUE = 54, STATIC = 55, REINTERPRET_CAST = 56, 
     FROM = 57, TO = 58, TYPEDEF = 59, FN = 60, ALIGN = 61, PLUS = 62, MINUS = 63, 
     ID = 64, CHAR = 65, STRING_LITERAL = 66, UNTERMINATED_STRING_LITERAL = 67, 
-    UNSIGNED_INT = 68, SIGNED_INT = 69, Newline = 70, Whitespace = 71, BlockComment = 72, 
-    LineComment = 73
+    UNSIGNED_INT = 68, Newline = 69, Whitespace = 70, BlockComment = 71, 
+    LineComment = 72
   };
 
   explicit bsLexer(antlr4::CharStream *input);

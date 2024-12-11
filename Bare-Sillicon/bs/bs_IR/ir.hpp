@@ -30,10 +30,10 @@ namespace bsc {
 	class IR {
 	public:
 		void OptimizationPass1();
+		void RemoveUnreachableCode();
 		void PropagateConstants();
 		void TrackVariables();
 		void DeadCodeElimination();
-
 		void RemoveMarkedOperations();
 
 		void RemoveRedundantUnaryOperators();

@@ -67,6 +67,7 @@ namespace bsc {
 		bool isUsed = false;
 		bool isModified = false;
 		bool isConstExpr = true;
+		bool isTemporaryResident = false;
 		int scopeIndex = 0;
 
 		bsParser::Var_declContext* decl_node = nullptr;
@@ -77,8 +78,8 @@ namespace bsc {
 		VarInfo(const std::string& name, Type t, int init_value, bool isConstExpr, bsParser::Var_declContext* decl, int idx) : 
 			name(std::format("{}_{}", name, idx)), type(t), eValue(init_value), isConstExpr(isConstExpr), decl_node(decl), scopeIndex(idx) {}
 		
-		VarInfo(const std::string& name, Type t, int init_value, bool isUsed, bool isMod, bool isConstExpr, bsParser::Var_declContext* decl, int idx) :
-			name(std::format("{}_{}", name, idx)),type(t), eValue(init_value), isUsed(isUsed), isModified(isMod), isConstExpr(isConstExpr), decl_node(decl), scopeIndex(idx) {}
+		VarInfo(const std::string& name, Type t, int init_value, bool isUsed, bool isMod, bool isConstExpr, bool isTempRes, bsParser::Var_declContext* decl, int idx) :
+			name(std::format("{}_{}", name, idx)),type(t), eValue(init_value), isUsed(isUsed), isModified(isMod), isConstExpr(isConstExpr), isTemporaryResident(isTempRes), decl_node(decl), scopeIndex(idx) {}
 
 	};
 
@@ -122,9 +123,9 @@ namespace bsc {
 		std::unordered_map<std::string, VarInfo> _vars;
 		VarGraph* _parent;
 
-		bool AddVariable(const std::string& name, Type type, bool isConstExpr, int initVal, bsParser::Var_declContext* ctx, int idx) {
+		bool AddVariable(const std::string& name, Type type, bool isConstExpr, bool isTempRes, int initVal, bsParser::Var_declContext* ctx, int idx) {
 			if (!HasVariable(name)) {
-				_vars[name] = VarInfo(name, type, initVal, false, false, isConstExpr, ctx, idx);
+				_vars[name] = VarInfo(name, type, initVal, false, false, isConstExpr, isTempRes, ctx, idx);
 				return true;
 			}
 			else {
@@ -194,11 +195,15 @@ namespace bsc {
 		}
 
 		bool AddGlobal(const std::string& name, Type type, bool isConstExpr, int initVal, bsParser::Var_declContext* ctx) {
-			return _globl->AddVariable(name, type, isConstExpr, initVal, ctx, 0);
+			return _globl->AddVariable(name, type, isConstExpr, false, initVal, ctx, 0);
 		}
 
 		bool AddCurrent(const std::string& name, Type type, bool isConstExpr, int initVal, bsParser::Var_declContext* ctx) {
-			return _curr->AddVariable(name, type, isConstExpr, initVal, ctx, _currentScopeIndex);
+			return _curr->AddVariable(name, type, isConstExpr, false, initVal, ctx, _currentScopeIndex);
+		}
+
+		bool AddTemporaryResident(const std::string& name, Type type, bool isConstExpr, long long initVal, long long tempIdx) {
+			return _curr->AddVariable(name, type, isConstExpr, true, initVal, nullptr, tempIdx);
 		}
 
 		bool HasVariable(const std::string& name) {
@@ -221,7 +226,7 @@ namespace bsc {
 			_curr = gp;
 			_scopes.push_back(gp);
 			if (_pshtr) {
-				_curr->AddVariable(_nxt.name, _nxt.type, _nxt.isConstExpr, _nxt.eValue, _nxt.decl_node, _currentScopeIndex);
+				_curr->AddVariable(_nxt.name, _nxt.type, _nxt.isConstExpr, false, _nxt.eValue, _nxt.decl_node, _currentScopeIndex);
 				_pshtr = false;
 			}
 		}
