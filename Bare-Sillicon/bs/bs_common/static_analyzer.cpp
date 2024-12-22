@@ -236,7 +236,7 @@ std::any StaticVisitor::visitInitStringLiteral(bsParser::InitStringLiteralContex
 
 std::any StaticVisitor::visitGoto_label(bsParser::Goto_labelContext* context)
 {
-    if (scopeTable.IsGloablScope()) // Global Scope
+    if (scopeTable.IsGlobalScope()) // Global Scope
     {
         logger.LogError(context, "Cannot declare goto labels outside of a function body");
     }
@@ -821,13 +821,15 @@ std::any StaticVisitor::visitDSimpleAssign(bsParser::DSimpleAssignContext* conte
     sym.isConstExpr = sym.isConstExpr && r.isConstExpr;
     sym.eValue = r.value;
     sym.isModified = true;
-    sym.assingment_nodes.push_back(context);
+
+    if (!scopeTable.IsVariableGlobal(sym.name))
+        sym.assingment_nodes.push_back(context);
 
     logger.CheckWarning(ShouldCastWarn(r.type, sym.type), context, "Assignment of expression with type {} to a variable with type {}", getTypeName(r.type), getTypeName(sym.type));
 
     context->eValue = r.value;
-    context->isConst = sym.isConstExpr;
-    context->isDc = r.isDC;
+    context->isConst = false;
+    context->isDc = false;
     context->eType = (int)sym.type;
 
     return exprResult(SelectCommonType(sym.type, r.type), sym.isConstExpr, r.isDC, r.value);
@@ -849,7 +851,7 @@ std::any StaticVisitor::visitDAddSubCompAssign(bsParser::DAddSubCompAssignContex
     logger.CheckWarning(ShouldCastWarn(r.type, sym.type), context, "Compound assignment of expression with type {} to a variable with type {}", getTypeName(r.type), getTypeName(sym.type));
 
     context->eValue = sym.eValue;
-    context->isConst = sym.isConstExpr;
+    context->isConst = false;
     context->isDc = false;
     context->eType = (int)sym.type;
 
@@ -874,7 +876,7 @@ std::any StaticVisitor::visitDMulDivModCompAssign(bsParser::DMulDivModCompAssign
     logger.CheckWarning(ShouldCastWarn(r.type, sym.type), context, "Assignment of expression with type {} to a variable with type {}", getTypeName(r.type), getTypeName(sym.type));
 
     context->eValue = sym.eValue;
-    context->isConst = sym.isConstExpr;
+    context->isConst = false;
     context->isDc = false;
     context->eType = (int)sym.type;
 
@@ -897,7 +899,7 @@ std::any StaticVisitor::visitDLSRSCompAssign(bsParser::DLSRSCompAssignContext* c
     logger.CheckWarning(ShouldCastWarn(r.type, sym.type), context, "Assignment of expression with type {} to a variable with type {}", getTypeName(r.type), getTypeName(sym.type));
     
     context->eValue = sym.eValue;
-    context->isConst = sym.isConstExpr;
+    context->isConst = false;
     context->isDc = false;
     context->eType = (int)sym.type;
 
@@ -922,7 +924,7 @@ std::any StaticVisitor::visitDAndXorOrCompAssign(bsParser::DAndXorOrCompAssignCo
     logger.CheckWarning(ShouldCastWarn(r.type, sym.type), context, "Assignment of expression with type {} to a variable with type {}", getTypeName(r.type), getTypeName(sym.type));
 
     context->eValue = sym.eValue;
-    context->isConst = sym.isConstExpr;
+    context->isConst = false;
     context->isDc = false;
     context->eType = (int)sym.type;
 

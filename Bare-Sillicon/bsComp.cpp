@@ -93,8 +93,10 @@ int main()
 	}
 
     int print(int x) {
-		int a = 2 + 10;
-        return a;
+        g_var = 32;
+		int a = (2 + x);
+        int y = a + 2 * x;
+        return y;
 	}
 )";
 	antlr4::ANTLRInputStream istr(input);

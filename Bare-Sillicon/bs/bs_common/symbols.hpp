@@ -210,6 +210,10 @@ namespace bsc {
 			return _curr->HasVariable(name);
 		}
 
+		bool IsVariableGlobal(const std::string& name) {
+			return _globl->HasVariable(name);
+		}
+
 		VarInfo& GetVariable(const std::string& name) {
 			return _curr->GetVariable(name);
 			throw std::runtime_error("Variable not found");
@@ -231,12 +235,12 @@ namespace bsc {
 			}
 		}
 
-		bool IsGloablScope() {
+		bool IsGlobalScope() {
 			return _curr == _globl;
 		}
 
 		void PopLastScope() {
-			if (IsGloablScope()) {
+			if (IsGlobalScope()) {
 				return;
 			}
 			_curr = _curr->_parent;

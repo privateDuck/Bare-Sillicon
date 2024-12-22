@@ -4,20 +4,37 @@ namespace bsX86{
 
 X86Generator::X86Generator()
 {
-	for (int i = RegType::REG_EAX; i < RegType::REG_R15; i++)
+	registers.push_back(RegType::REG_ECX);
+	for (int i = RegType::REG_R8; i < RegType::REG_R15; i++)
 	{
 		registers.push_back(static_cast<RegType>(i));
 	}
-
+	registers.push_back(RegType::REG_EBX);
 	for (auto& [r, b] : regAvailability) b = true;
 }
 
 void bsX86::X86Generator::generateX86(bsc::IR& ir)
 {
-	for (const auto& tac : ir.getTACs())
+	std::vector<bsc::IRFunction> functions = ir.PackFunctions();
+
+	for (const auto& func : functions)
+	{
+		emitFunctionPrologue(func.name, func.GetLocalCount() * 4);
+		currentFn = &func;
+
+		for (const auto& tac : func.tacs)
+		{
+			analyzeIROperation(tac);
+		}
+
+		emitFunctionEpilogue();
+		ReclaimAllRegisters();
+	}
+
+	/*for (const auto& tac : ir.getTACs())
 	{
 		analyzeIROperation(tac);
-	}
+	}*/
 }
 
 std::string X86Generator::getOutput()
@@ -37,7 +54,15 @@ void X86Generator::analyzeIROperation(const bsc::TAC& tac)
 	switch (oper)
 	{
 	case bsc::IROpertion::VAR_INIT:
-		stackVars[bsc::NAMERESOLVER::get().getID(tac.arg1.value)] = currentStackOffset;
+	{
+		INSTR_ARG dest, src;
+		resolveTACArg(tac.arg1, dest, true);
+		resolveTACArg(tac.arg2, src);
+		out << "mov " << dest << ", " << src;
+		out.endline();
+		FreeReg(src.reg);
+		break;
+	}
 	case bsc::IROpertion::PTR_LVAL:
 		break;
 	case bsc::IROpertion::PTR_RVAL:
@@ -51,7 +76,17 @@ void X86Generator::analyzeIROperation(const bsc::TAC& tac)
 	case bsc::IROpertion::CALL:
 		break;
 	case bsc::IROpertion::RETURN:
+	{
+		INSTR_ARG src;
+		resolveTACArg(tac.arg1, src);
+		if (src.type != Instr_Arg_Type::REGISTER || src.reg.type != REG_EAX) {
+			out << "mov eax, " << src;
+			out.endline();
+		}
+		if (src.type == Instr_Arg_Type::REGISTER)
+			FreeReg(src.reg);
 		break;
+	}
 	case bsc::IROpertion::GOTO:
 		break;
 	case bsc::IROpertion::GOTO_IF_TRUE:
@@ -77,6 +112,41 @@ void X86Generator::analyzeIROperation(const bsc::TAC& tac)
 	}
 }
 
+void X86Generator::emitFunctionPrologue(const std::string& func, size_t stack_size)
+{
+	out.empty();
+	out << "global " << func;
+	out.endline();
+	out << func << ":";
+	out.endline();
+
+	out.indent();
+
+	out << "push ebp";
+	out.endline();
+	out << "mov ebp, esp";
+	out.endline();
+
+	if (stack_size > 0)
+	{
+		out << "sub esp, " << stack_size;
+		out.endline();
+	}
+}
+
+void X86Generator::emitFunctionEpilogue()
+{
+	out << "mov esp, ebp";
+	out.endline();
+	out << "pop ebp";
+	out.endline();
+	out << "ret";
+	out.endline();
+
+	out.unindent();
+	out.empty();
+}
+
 void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 {
 	INSTR_ARG dest, src1, src2;
@@ -84,12 +154,26 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	resolveTACArg(tac.arg2, src1);
 	resolveTACArg(tac.arg3, src2);
 
+	// 3 cases
+	// 1. dest == src1 : operator dest, src2
+	// 2. dest == src2 : operator dest, src1
+	// 3. dest != src1 && dest != src2 : mov dest, src1; operator dest, src2
+
+	if (tac.arg1.value == tac.arg2.value && tac.arg2.argType != bsc::IRARG::VALUE) {
+		// nothing
+	}
+	else if (tac.arg1.value == tac.arg3.value && tac.arg3.argType != bsc::IRARG::VALUE) {
+		std::swap(src1, src2);
+	}
+	else {
+		out << "mov " << dest << ", " << src1;
+		out.endline();
+	}
+
 	switch (tac.oper)
 	{
 	case bsc::IROpertion::ADD:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "add " << dest << ", " << src2;
 		out.endline();
 		break;
@@ -323,25 +407,27 @@ void X86Generator::resolveTACArg(const bsc::TAC_ARG& arg, INSTR_ARG& out_arg, bo
 	}
 
 	if (isDest && arg.argType == bsc::IRARG::VARIABLE) {
-		if (keepVariablesInRegisters) {
-			if (registerArgs.count(arg.value) > 0) {
-				out_arg.setAsRegister(registerArgs.at(arg.value));
-				return;
-			}
-			else {
+		std::string name = bsc::NAMERESOLVER::get().getID(arg.value);
+		if (currentFn->HasLocal(name)) {
+			if (keepVariablesInRegisters) {
 				Register reg = GetReg(arg.type);
+				out.empty();
+				out << "; symbol " << name << " uses register " << reg;
+				out.endline();
 				out_arg.setAsRegister(reg);
 				registerArgs[arg.value] = reg;
 				return;
 			}
+			else {
+				out_arg.type = Instr_Arg_Type::POINTER_WOFFSET;
+				out_arg.reg.type = REG_EBP;
+				out_arg.offset = currentFn->GetLocal(name).offset * 4;
+				return;
+			}
 		}
 		else {
-			if (registerArgs.count(arg.value) > 0) {
-				FreeReg(registerArgs.at(arg.value));
-				registerArgs.erase(arg.value);
-			}
 			out_arg.type = Instr_Arg_Type::LABEL;
-			out_arg.label = bsc::NAMERESOLVER::get().getID(arg.value);
+			out_arg.label = name;
 			return;
 		}
 	}
@@ -352,18 +438,26 @@ void X86Generator::resolveTACArg(const bsc::TAC_ARG& arg, INSTR_ARG& out_arg, bo
 			out_arg.reg = registerArgs.at(arg.value);
 			return;
 		}
-		Register reg = GetReg(arg.type);
-		std::string idName = bsc::NAMERESOLVER::get().getID(arg.value);
-		if (stackVars.count(idName) > 0) {
-			if (keepVariablesInRegisters) {
-				std::string crs = std::format("[ebp-{}]", stackVars.at(idName));
-				out << "mov " << crs << ", " << idName;
-				out.endline();
 
+		std::string idName = bsc::NAMERESOLVER::get().getID(arg.value);
+		if (currentFn->HasLocal(idName)) {
+
+			if (keepVariablesInRegisters) {
+				Register reg = GetReg(arg.type);
+				if (currentFn->IsParam(idName)) {
+					std::string crs = std::format("[ebp{}]", currentFn->GetLocal(idName).offset * 4);
+					out << "mov " << reg << ", " << crs << "; pre-load fn parameter " << idName;
+					out.endline();
+				}
+				else {
+					out << "mov " << reg << ", [ebp" << std::format("{:+}", currentFn->GetLocal(idName).offset * 4) << "]" << "; pre-load symbol " << idName;
+					out.endline();
+				}
 				registerArgs[arg.value] = reg;
+				out_arg.setAsRegister(reg);
 			}
 			else
-				out_arg.setAsPointerOffset(reg, stackVars.at(bsc::NAMERESOLVER::get().getID(arg.value)));
+				out_arg.setAsPointerOffset(EBP_REG, currentFn->GetLocal(idName).offset * 4);
 		}
 		else
 			out_arg.setAsLabel(idName); // Global variable
@@ -448,7 +542,7 @@ Register bsX86::X86Generator::GetReg(bsc::Type type)
 
 void X86Generator::FreeReg(Register reg)
 {
-	if (stack.back().type == reg.type)
+	if (!stack.empty() && stack.back().type == reg.type)
 	{
 		out << "pop " << reg.to_string();
 		out.endline();
@@ -465,9 +559,14 @@ void X86Generator::ReclaimAllRegisters()
 {
 	for (const auto& [key, value] : registerArgs)
 	{
+		if (!regAvailability[value.type])
+			registers.push_back(value.type);
 		regAvailability[value.type] = true;
-		registers.push_back(value.type);
 	}
+}
+
+void X86Generator::FreeTemporaryRegisters()
+{
 }
 
 

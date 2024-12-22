@@ -19,7 +19,7 @@ namespace bsX86 {
 	private:
 		void analyzeIROperation(const bsc::TAC& tac);
 
-		void emitFunctionPrologue(const std::string& func);
+		void emitFunctionPrologue(const std::string& func, size_t stack_size);
 		void emitFunctionEpilogue();
 		void emitBinaryOp(const bsc::TAC& tac);
 		void emitUnaryOp(const bsc::TAC& tac);
@@ -33,17 +33,21 @@ namespace bsX86 {
 		Register GetReg(bsc::Type type);
 		void FreeReg(Register reg);
 		void ReclaimAllRegisters();
+		void FreeTemporaryRegisters();
 
 		int currentStackSize = 0;
-		int currentStackOffset = 0;
-		bool keepVariablesInRegisters = false;
+		int currentLocalOffset = 0;
+		int currentParamOffset = -4;
+		bool keepVariablesInRegisters = true;
+		Register EBP_REG = Register(REG_EBP, REG_32);
 		std::vector<RegType> registers;
-		std::unordered_map<std::string, int> stackVars;
+		//std::unordered_map<std::string, int> stackVars;
 		std::unordered_map<RegType, bool> regAvailability;
 		std::unordered_map<long long, Register> registerArgs;
 		std::vector<INSTR_ARG> stack;
 
 		IndentedStream out;
+		const bsc::IRFunction* currentFn = nullptr;
 	};
 
 } // namespace bsX86

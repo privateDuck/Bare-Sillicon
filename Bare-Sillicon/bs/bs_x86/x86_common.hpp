@@ -113,7 +113,12 @@ namespace bsX86
 			case POINTER:
 				return std::format("[{}]", reg.to_string());
 			case POINTER_WOFFSET:
-				return std::format("[{}+{}]", reg.to_string(), offset);
+				if (offset == 0)
+					return std::format("[{}]", reg.to_string());
+				else if (offset < 0)
+					return std::format("[{}{}]", reg.to_string(), offset);
+				else
+					return std::format("[{}+{}]", reg.to_string(), offset);
 			default:
 				break;
 			}

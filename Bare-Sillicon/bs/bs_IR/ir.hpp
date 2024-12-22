@@ -7,6 +7,8 @@
 
 namespace bsc {
 
+	typedef std::pair<std::string, size_t> STACK_VAR;
+
 	struct TrackedValue {
 		long long value;
 		size_t currentLine;
@@ -27,6 +29,76 @@ namespace bsc {
 		}
 	};
 
+	struct FNFrameVar {
+		size_t size;
+		int offset; // from ebp or frame pointer
+
+		FNFrameVar() : size(0), offset(0) {}
+		FNFrameVar(size_t size, int offset) : size(size), offset(offset) {}
+	};
+
+	class IRFunction {
+	public:
+		IRFunction() = default;
+		IRFunction(const std::string& name) : name(name), currentParamOffset(-1) {}
+
+		std::string name;
+		std::vector<TAC> tacs;
+		std::unordered_map<std::string, FNFrameVar> locals;
+		std::unordered_map<std::string, FNFrameVar> params;
+
+		void AddLocal(const std::string& name, size_t size) {
+			locals[name] = FNFrameVar(size, currentLocalOffset);
+			currentLocalOffset += 1;
+		}
+
+		void AddParam(const std::string& name, size_t size) {
+			params[name] = FNFrameVar(size, currentParamOffset);
+			currentParamOffset -= 1;
+		}
+
+		void AddTAC(const TAC& tac) {
+			tacs.push_back(tac);
+		}
+
+		const FNFrameVar& GetLocal(const std::string& name) const {
+			if (locals.find(name) != locals.end()) {
+				return locals.at(name);
+			}
+			else if (params.find(name) != params.end()) {
+				return params.at(name);
+			}
+			else {
+				// Should never occur
+				throw std::runtime_error("Variable not found in function: " + name);
+			}
+		}
+
+		bool HasLocal(const std::string& name) const {
+			return locals.find(name) != locals.end() || params.find(name) != params.end();
+		}
+
+		bool IsParam(const std::string& name) const {
+			return params.find(name) != params.end();
+		}
+
+		bool IsLocal(const std::string& name) const {
+			return locals.find(name) != locals.end();
+		}
+
+		size_t GetLocalCount() const {
+			return locals.size();
+		}
+
+		size_t GetParamCount() const {
+			return params.size();
+		}
+
+	private:
+		int currentLocalOffset = 0;
+		int currentParamOffset = 0;
+	};
+
 	class IR {
 	public:
 		void OptimizationPass1();
@@ -38,6 +110,8 @@ namespace bsc {
 
 		void RemoveRedundantUnaryOperators();
 		void OptimizeDeclarations();
+
+		std::vector<IRFunction> PackFunctions();
 
 		std::string ConvertToString() const;
 		std::vector<TAC> getTACs() const;

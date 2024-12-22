@@ -214,6 +214,47 @@ void IR::OptimizeDeclarations()
 	}
 }
 
+std::vector<IRFunction> IR::PackFunctions()
+{
+	std::vector<IRFunction> fns;
+	std::unordered_map<std::string, size_t> params;
+	bool inside_fn = false;
+	for (size_t i = 0; i < tacs.size(); i++)
+	{
+		const TAC& tac = tacs[i];
+		if (tac.oper == IROpertion::DECL_FN_PARAM && !inside_fn) {
+			inside_fn = true;
+			params.insert({ NAMERESOLVER::get().getID(tac.arg1.value), getTypeSize(tac.type) });
+		}
+		else if (tac.oper == IROpertion::RETURN) {
+			inside_fn = false;
+			fns.back().AddTAC(tac);
+		}
+		else if (tac.oper == IROpertion::DECL_FN_PARAM) {
+			params.insert({ NAMERESOLVER::get().getID(tac.arg1.value), getTypeSize(tac.type) });
+		}
+		else if (tac.oper == IROpertion::DECL_FUNC) {
+			IRFunction fn(NAMERESOLVER::get().getID(tac.arg1.value));
+			fns.push_back(fn);
+
+			for (const auto& [id, size] : params) {
+				fns.back().AddParam(id, size);
+			}
+			params.clear();
+		}
+		else if (tac.oper == IROpertion::DECL_VAR) {
+			fns.back().AddLocal(NAMERESOLVER::get().getID(tac.arg1.value), getTypeSize(tac.type));
+		}
+		else if (tac.oper == IROpertion::DECL_ARRAY) {
+			fns.back().AddLocal(NAMERESOLVER::get().getID(tac.arg1.value), tac.arg2.value * getTypeSize(tac.type));
+		}
+		else if (inside_fn) {
+			fns.back().AddTAC(tac);
+		}
+	}
+	return fns;
+}
+
 std::string IR::ConvertToString() const
 {
 	IndentedStream istr;
