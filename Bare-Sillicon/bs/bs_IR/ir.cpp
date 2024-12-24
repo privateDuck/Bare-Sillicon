@@ -148,6 +148,20 @@ void IR::TrackVariables()
 				vt.removeLastAssignment();
 			}
 		}
+		else if (tac.oper == IROpertion::LOAD_PTR) {
+			if (tac.arg2.argType != IRARG::VALUE) {
+				auto& vt = getTrackedValue(tac.arg2);
+				vt.wasUsed = true;
+				vt.removeLastAssignment();
+			}
+		}
+		else if (tac.oper == IROpertion::PTR_RVAL) {
+			if (tac.arg2.argType != IRARG::VALUE) {
+				auto& vt = getTrackedValue(tac.arg2);
+				vt.wasUsed = true;
+				vt.removeLastAssignment();
+			}
+		}
 	}
 }
 
@@ -258,15 +272,52 @@ std::vector<IRFunction> IR::PackFunctions()
 std::string IR::ConvertToString() const
 {
 	IndentedStream istr;
-	istr.indent();
 	for (const TAC& tac : tacs)
 	{
-		if (tac.isLabel()) istr.unindent();
-		istr << tac.to_string();
-		istr.endline();
-		if (tac.isLabel()) istr.indent();
+		IROpertion op = tac.oper;
+		switch (op)
+		{
+		case bsc::IROpertion::CALL:
+			istr << tac.to_string();
+			istr.endline();
+			istr.empty();
+			break;
+		case bsc::IROpertion::RETURN:
+			istr.indent();
+			istr.empty();
+			istr << tac.to_string();
+			istr.endline();
+			istr.unindent();
+			istr.empty();
+			break;
+		case bsc::IROpertion::DECL_LABEL:
+			istr << tac.to_string();
+			istr.endline();
+			break;
+		case bsc::IROpertion::DECL_FN_ARG:
+		case bsc::IROpertion::DECL_FN_PARAM:
+			istr.empty();
+			istr << tac.to_string();
+			istr.endline();
+			break;
+		case bsc::IROpertion::DECL_VAR:
+		case bsc::IROpertion::DECL_ARRAY:
+			istr << tac.to_string();
+			istr.endline();
+			break;
+		case bsc::IROpertion::DECL_FUNC:
+			istr << tac.to_string();
+			istr.endline();
+			istr.empty();
+			break;
+		default:
+			istr.indent();
+			istr << tac.to_string();
+			istr.endline();
+			istr.unindent();
+			break;
+		}
 	}
-	istr.unindent();
 	return istr.str();
 }
 

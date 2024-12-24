@@ -44,6 +44,23 @@ namespace bsX86
 		POINTER_WOFFSET
 	};
 
+	static std::string getPtrType(RegSize size)
+	{
+		switch (size)
+		{
+		case REG_8:
+			return "BYTE PTR";
+		case REG_16:
+			return "WORD PTR";
+		case REG_32:
+			return "DWORD PTR";
+		case REG_64:
+			return "QWORD PTR";
+		default:
+			return "DWORD PTR";
+		}
+	}
+
 	struct Register {
 		RegType type;
 		RegSize size;
@@ -113,12 +130,15 @@ namespace bsX86
 			case POINTER:
 				return std::format("[{}]", reg.to_string());
 			case POINTER_WOFFSET:
+			{
+				std::string ptr_type = getPtrType(reg.size);
 				if (offset == 0)
-					return std::format("[{}]", reg.to_string());
+					return std::format("{} [{}]", ptr_type, reg.to_string());
 				else if (offset < 0)
-					return std::format("[{}{}]", reg.to_string(), offset);
+					return std::format("{} [{}{}]", ptr_type, reg.to_string(), offset);
 				else
-					return std::format("[{}+{}]", reg.to_string(), offset);
+					return std::format("{} [{}+{}]", ptr_type, reg.to_string(), offset);
+			}
 			default:
 				break;
 			}

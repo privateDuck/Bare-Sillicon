@@ -4,12 +4,15 @@ namespace bsX86{
 
 X86Generator::X86Generator()
 {
-	registers.push_back(RegType::REG_ECX);
+	registerSet.insert(RegType::REG_ECX);
 	for (int i = RegType::REG_R8; i < RegType::REG_R15; i++)
 	{
-		registers.push_back(static_cast<RegType>(i));
+		registerSet.insert(static_cast<RegType>(i));
 	}
-	registers.push_back(RegType::REG_EBX);
+	registerSet.insert(RegType::REG_EBX);
+	registerSet.insert(RegType::REG_EDX);
+	registerSet.insert(RegType::REG_ESI);
+	registerSet.insert(RegType::REG_EDI);
 	for (auto& [r, b] : regAvailability) b = true;
 }
 
@@ -27,8 +30,8 @@ void bsX86::X86Generator::generateX86(bsc::IR& ir)
 			analyzeIROperation(tac);
 		}
 
-		emitFunctionEpilogue();
 		ReclaimAllRegisters();
+		emitFunctionEpilogue();
 	}
 
 	/*for (const auto& tac : ir.getTACs())
@@ -66,9 +69,44 @@ void X86Generator::analyzeIROperation(const bsc::TAC& tac)
 	case bsc::IROpertion::PTR_LVAL:
 		break;
 	case bsc::IROpertion::PTR_RVAL:
+	{
+		INSTR_ARG dest, src;
+		resolveTACArg(tac.arg1, dest, true);
+		resolveTACArg(tac.arg2, src);
+
+		if (src.type == Instr_Arg_Type::POINTER_WOFFSET) {
+			auto reg = GetReg(tac.type);
+			out << "mov " << reg << ", " << src << " ; load pointer value to " << reg;
+			out.endline();
+			out << "mov " << dest << ", " << getPtrType(reg.size) << '[' << reg << ']' << " ; load value in the pointer to " << dest;
+			out.endline();
+			FreeReg(reg);
+		}
+		else {
+			out << "mov " << dest << ", " << getPtrType(src.reg.size) << '[' << src << ']';
+			out.endline();
+		}
+
+		if (dest.type == Instr_Arg_Type::POINTER_WOFFSET || dest.type == Instr_Arg_Type::REGISTER)
+			FreeReg(dest.reg);
 		break;
+	}
 	case bsc::IROpertion::LOAD_PTR:
+	{
+		INSTR_ARG dest, src;
+		if (keepVariablesInRegisters) {
+			resolveTACArg(tac.arg2, src);
+			dest = src;
+		}
+		else {
+			resolveTACArg(tac.arg1, dest, true);
+			resolveTACArg(tac.arg2, src);
+			// non global variable
+			out << "lea " << dest << ", " << src;
+			out.endline();
+		}
 		break;
+	}
 	case bsc::IROpertion::STATIC_CAST:
 		break;
 	case bsc::IROpertion::REINTERPRET_CAST:
@@ -94,6 +132,9 @@ void X86Generator::analyzeIROperation(const bsc::TAC& tac)
 	case bsc::IROpertion::GOTO_IF_FALSE:
 		break;
 	case bsc::IROpertion::DECL_LABEL:
+		out.unindent();
+		out << bsc::NAMERESOLVER::get().getID(tac.arg1.value) << ":"; // label:
+		out.endline();
 		break;
 	case bsc::IROpertion::DECL_FN_ARG:
 		break;
@@ -132,10 +173,12 @@ void X86Generator::emitFunctionPrologue(const std::string& func, size_t stack_si
 		out << "sub esp, " << stack_size;
 		out.endline();
 	}
+	out.empty();
 }
 
 void X86Generator::emitFunctionEpilogue()
 {
+	out.empty();
 	out << "mov esp, ebp";
 	out.endline();
 	out << "pop ebp";
@@ -180,37 +223,48 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::SUB:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "sub " << dest << ", " << src2;
 		out.endline();
 		break;
 	}
 	case bsc::IROpertion::MUL:
 	{
-		auto eax = RequestRegister(bsX86::RegType::REG_EAX, tac.type);
-		out << "mov " << eax << ", " << src1;
-		out.endline();
+		Register eax = Register(REG_EAX, REG_32);
+
+		if (!(src1.type == Instr_Arg_Type::REGISTER && src1.reg.type == RegType::REG_EAX)){
+			eax = RequestRegister(bsX86::RegType::REG_EAX, tac.type);
+			out << "mov " << eax << ", " << src1;
+			out.endline();
+		}
+
 		if (bsc::isSigned(tac.type))
 			out << "imul " << src2;
 		else
 			out << "mul " << src2;
+		
 		out.endline();
 		out << "mov " << dest << ", " << eax;
 		out.endline();
 		FreeReg(eax);
 		out.endline();
+
 		break;
 	}
 	case bsc::IROpertion::DIV:
 	{
-		auto eax = RequestRegister(bsX86::RegType::REG_EAX, tac.type);
-		out << "mov " << eax << ", " << src1;
-		out.endline();
+		Register eax = Register(REG_EAX, REG_32);
+
+		if (!(src1.type == Instr_Arg_Type::REGISTER && src1.reg.type == RegType::REG_EAX)) {
+			eax = RequestRegister(bsX86::RegType::REG_EAX, tac.type);
+			out << "mov " << eax << ", " << src1;
+			out.endline();
+		}
+
 		if (bsc::isSigned(tac.type))
 			out << "idiv " << src2;
 		else
 			out << "div " << src2;
+
 		out.endline();
 		out << "mov " << dest << ", " << eax;
 		out.endline();
@@ -220,14 +274,20 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::MOD:
 	{
-		auto eax = RequestRegister(bsX86::RegType::REG_EDX, tac.type);
 		auto edx = RequestRegister(bsX86::RegType::REG_EAX, tac.type);
-		out << "mov " << eax << ", " << src1;
-		out.endline();
+		Register eax = Register(REG_EAX, REG_32);
+
+		if (!(src1.type == Instr_Arg_Type::REGISTER && src1.reg.type == RegType::REG_EAX)) {
+			eax = RequestRegister(bsX86::RegType::REG_EAX, tac.type);
+			out << "mov " << eax << ", " << src1;
+			out.endline();
+		}
+
 		if (bsc::isSigned(tac.type))
 			out << "imul " << src2;
 		else
 			out << "mul " << src2;
+
 		out.endline();
 		out << "mov " << dest << ", " << edx;
 		out.endline();
@@ -238,32 +298,24 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::BITWISE_AND:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "and " << dest << ", " << src2;
 		out.endline();
 		break;
 	}
 	case bsc::IROpertion::BITWISE_OR:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "or " << dest << ", " << src2;
 		out.endline();
 		break;
 	}
 	case bsc::IROpertion::BITWISE_XOR:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "xor " << dest << ", " << src2;
 		out.endline();
 		break;
 	}
 	case bsc::IROpertion::SHIFT_LEFT:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		if (bsc::isSigned(tac.type))
 			out << "sal " << dest << ", " << src2;
 		else
@@ -273,8 +325,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::SHIFT_RIGHT:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		if (bsc::isSigned(tac.type))
 			out << "sar " << dest << ", " << src2;
 		else
@@ -284,8 +334,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::EQUAL:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", " << src2;
 		out.endline();
 		out << "sete " << dest;
@@ -293,8 +341,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::NOT_EQUAL:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", " << src2;
 		out.endline();
 		out << "setne " << dest;
@@ -302,8 +348,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::LESS:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", " << src2;
 		out.endline();
 		out << "setl " << dest;
@@ -311,8 +355,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::GREATER:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", " << src2;
 		out.endline();
 		out << "setg " << dest;
@@ -320,8 +362,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::LESS_EQUAL:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", " << src2;
 		out.endline();
 		out << "setle " << dest;
@@ -329,8 +369,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::GREATER_EQUAL:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", " << src2;
 		out.endline();
 		out << "setge " << dest;
@@ -338,8 +376,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::LOGICAL_AND:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", 0";
 		out.endline();
 		out << "setne " << dest;
@@ -355,8 +391,6 @@ void X86Generator::emitBinaryOp(const bsc::TAC& tac)
 	}
 	case bsc::IROpertion::LOGICAL_OR:
 	{
-		out << "mov " << dest << ", " << src1;
-		out.endline();
 		out << "cmp " << dest << ", 0";
 		out.endline();
 		out << "setne " << dest;
@@ -421,7 +455,7 @@ void X86Generator::resolveTACArg(const bsc::TAC_ARG& arg, INSTR_ARG& out_arg, bo
 			else {
 				out_arg.type = Instr_Arg_Type::POINTER_WOFFSET;
 				out_arg.reg.type = REG_EBP;
-				out_arg.offset = currentFn->GetLocal(name).offset * 4;
+				out_arg.offset = currentFn->GetLocal(name).offset * 8;
 				return;
 			}
 		}
@@ -445,19 +479,21 @@ void X86Generator::resolveTACArg(const bsc::TAC_ARG& arg, INSTR_ARG& out_arg, bo
 			if (keepVariablesInRegisters) {
 				Register reg = GetReg(arg.type);
 				if (currentFn->IsParam(idName)) {
-					std::string crs = std::format("[ebp{}]", currentFn->GetLocal(idName).offset * 4);
-					out << "mov " << reg << ", " << crs << "; pre-load fn parameter " << idName;
+					std::string crs = std::format("[ebp{}]", currentFn->GetLocal(idName).offset * 8);
+					std::string comment = std::format(" ; load parameter {} to {}", idName, reg.to_string());
+
+					out << "mov " << reg << ", " << crs << comment;
 					out.endline();
 				}
 				else {
-					out << "mov " << reg << ", [ebp" << std::format("{:+}", currentFn->GetLocal(idName).offset * 4) << "]" << "; pre-load symbol " << idName;
+					out << "mov " << reg << ", [ebp" << std::format("{:+}", currentFn->GetLocal(idName).offset * 8) << "]" << "; pre-load symbol " << idName;
 					out.endline();
 				}
 				registerArgs[arg.value] = reg;
 				out_arg.setAsRegister(reg);
 			}
 			else
-				out_arg.setAsPointerOffset(EBP_REG, currentFn->GetLocal(idName).offset * 4);
+				out_arg.setAsPointerOffset(EBP_REG, currentFn->GetLocal(idName).offset * 8);
 		}
 		else
 			out_arg.setAsLabel(idName); // Global variable
@@ -518,10 +554,10 @@ Register X86Generator::RequestRegister(RegType regType, bsc::Type type)
 Register X86Generator::GetReg(bsX86::RegSize size)
 {
 	Register reg;
-	reg.type = registers.back();
+	reg.type = *registerSet.begin();
+	registerSet.erase(reg.type);
 	reg.size = size;
 	regAvailability[reg.type] = false;
-	registers.pop_back();
 	return reg;
 }
 
@@ -550,7 +586,7 @@ void X86Generator::FreeReg(Register reg)
 	}
 	else
 	{
-		registers.push_back(reg.type);
+		registerSet.insert(reg.type);
 		regAvailability[reg.type] = true;
 	}
 }
@@ -559,8 +595,8 @@ void X86Generator::ReclaimAllRegisters()
 {
 	for (const auto& [key, value] : registerArgs)
 	{
-		if (!regAvailability[value.type])
-			registers.push_back(value.type);
+		//if (!regAvailability[value.type])
+		registerSet.insert(value.type);
 		regAvailability[value.type] = true;
 	}
 }

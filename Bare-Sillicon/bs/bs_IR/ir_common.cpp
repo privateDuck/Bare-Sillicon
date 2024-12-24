@@ -53,6 +53,8 @@ std::string TAC::to_string() const
 		return std::format("[{}:{}] = {}", arg1.get(), getTypeName(type), arg2.get());
 	case bsc::IROpertion::PTR_RVAL:
 		return std::format("{} = [{}:{}]", arg1.get(), arg2.get(), getTypeName(type));
+	case bsc::IROpertion::LOAD_PTR:
+		return std::format("{} = load ptr {}", arg1.get(), arg2.get());
 	case bsc::IROpertion::STATIC_CAST:
 		return std::format("{} = cast_to_{}({})", arg1.get(), getTypeName(type), arg2.get());
 	case bsc::IROpertion::REINTERPRET_CAST:

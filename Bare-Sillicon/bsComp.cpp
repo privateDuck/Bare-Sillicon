@@ -89,7 +89,9 @@ int main()
     int g_var = 42 * 2 + 1;
 
     uint factorial(uint n) {
-		return n;
+        int x = 32;
+        uint y = &x;
+		return [y:4s]+n;
 	}
 
     int print(int x) {
@@ -131,9 +133,9 @@ int main()
 	
 	std::cout << ir.GetLogs() << "\n\n";
 
-    irep.OptimizationPass1();
+    /*irep.OptimizationPass1();
     
-    std::cout << irep.ConvertToString() << "\n\n";
+    std::cout << irep.ConvertToString() << "\n\n";*/
 
     bsX86::X86Generator x86gen;
     x86gen.generateX86(irep);

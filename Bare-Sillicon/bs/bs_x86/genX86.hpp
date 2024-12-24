@@ -35,12 +35,11 @@ namespace bsX86 {
 		void ReclaimAllRegisters();
 		void FreeTemporaryRegisters();
 
-		int currentStackSize = 0;
-		int currentLocalOffset = 0;
-		int currentParamOffset = -4;
-		bool keepVariablesInRegisters = true;
+		bool keepVariablesInRegisters = false;
 		Register EBP_REG = Register(REG_EBP, REG_32);
-		std::vector<RegType> registers;
+		//std::vector<RegType> registers;
+		std::unordered_set<RegType> registerSet;
+
 		//std::unordered_map<std::string, int> stackVars;
 		std::unordered_map<RegType, bool> regAvailability;
 		std::unordered_map<long long, Register> registerArgs;

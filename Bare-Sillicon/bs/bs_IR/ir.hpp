@@ -40,7 +40,7 @@ namespace bsc {
 	class IRFunction {
 	public:
 		IRFunction() = default;
-		IRFunction(const std::string& name) : name(name), currentParamOffset(-1) {}
+		IRFunction(const std::string& name) : name(name), currentParamOffset(2), currentLocalOffset(-1) {}
 
 		std::string name;
 		std::vector<TAC> tacs;
@@ -49,12 +49,12 @@ namespace bsc {
 
 		void AddLocal(const std::string& name, size_t size) {
 			locals[name] = FNFrameVar(size, currentLocalOffset);
-			currentLocalOffset += 1;
+			currentLocalOffset -= 1;
 		}
 
 		void AddParam(const std::string& name, size_t size) {
 			params[name] = FNFrameVar(size, currentParamOffset);
-			currentParamOffset -= 1;
+			currentParamOffset += 1;
 		}
 
 		void AddTAC(const TAC& tac) {
@@ -95,8 +95,8 @@ namespace bsc {
 		}
 
 	private:
-		int currentLocalOffset = 0;
-		int currentParamOffset = 0;
+		int currentLocalOffset = -1;
+		int currentParamOffset = 2;
 	};
 
 	class IR {
