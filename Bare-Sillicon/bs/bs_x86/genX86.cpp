@@ -22,8 +22,8 @@ void bsX86::X86Generator::generateX86(bsc::IR& ir)
 
 	for (const auto& func : functions)
 	{
-		emitFunctionPrologue(func.name, func.GetLocalCount() * 4);
 		currentFn = &func;
+		emitFunctionPrologue(func.name, func.GetLocalCount() * 8);
 
 		for (const auto& tac : func.tacs)
 		{
@@ -163,25 +163,45 @@ void X86Generator::emitFunctionPrologue(const std::string& func, size_t stack_si
 
 	out.indent();
 
-	out << "push ebp";
+	out << "push rbp";
 	out.endline();
-	out << "mov ebp, esp";
+	out << "mov rbp, rsp";
 	out.endline();
 
 	if (stack_size > 0)
 	{
-		out << "sub esp, " << stack_size;
+		out << "sub rsp, " << stack_size;
 		out.endline();
 	}
+
+	// Copy the registers rcx through r9 to the shadow space
+	for (size_t i = 0; i < currentFn->GetParamCount(); i++)
+	{
+		INSTR_ARG arg;
+		Register ebpWoff = Register(REG_EBP, REG_64);
+		
+		arg.setAsPointerOffset(ebpWoff, 16 + i * 8); // base pointer + return address = 16 bytes
+		Register pReg = Register((RegType)(REG_ECX + i), REG_64);
+		out << "mov " << arg << ", " << pReg;
+		out.endline();
+	}
+
+
+	// rsp - 40
+	// shadow -> 32 | ra :
+	// rsp -> ra
+	// rsp + 8  1st param
+	// rsp + 16 2nd param
+	// rsp - 24
 	out.empty();
 }
 
 void X86Generator::emitFunctionEpilogue()
 {
 	out.empty();
-	out << "mov esp, ebp";
+	out << "mov rsp, rbp";
 	out.endline();
-	out << "pop ebp";
+	out << "pop rbp";
 	out.endline();
 	out << "ret";
 	out.endline();
@@ -479,14 +499,14 @@ void X86Generator::resolveTACArg(const bsc::TAC_ARG& arg, INSTR_ARG& out_arg, bo
 			if (keepVariablesInRegisters) {
 				Register reg = GetReg(arg.type);
 				if (currentFn->IsParam(idName)) {
-					std::string crs = std::format("[ebp{}]", currentFn->GetLocal(idName).offset * 8);
+					std::string crs = std::format("[rbp{}]", currentFn->GetLocal(idName).offset * 8);
 					std::string comment = std::format(" ; load parameter {} to {}", idName, reg.to_string());
 
 					out << "mov " << reg << ", " << crs << comment;
 					out.endline();
 				}
 				else {
-					out << "mov " << reg << ", [ebp" << std::format("{:+}", currentFn->GetLocal(idName).offset * 8) << "]" << "; pre-load symbol " << idName;
+					out << "mov " << reg << ", [rbp" << std::format("{:+}", currentFn->GetLocal(idName).offset * 8) << "]" << "; pre-load symbol " << idName;
 					out.endline();
 				}
 				registerArgs[arg.value] = reg;

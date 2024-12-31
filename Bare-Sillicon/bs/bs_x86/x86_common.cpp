@@ -8,15 +8,15 @@ std::string bsX86::Register::to_string() const
 		if (type < REG_R8) return std::format("{}l", getRegName());
 		else return std::format("{}b", getRegName());
 	case bsX86::REG_16:
-		if (type < REG_ESI) return std::format("{}x", getRegName());
-		else if (type < REG_R8) getRegName();
+		if (type < REG_ESI || type == REG_ECX || type == REG_EDX ) return std::format("{}x", getRegName());
+		else if (type < REG_R8) return getRegName();
 		else return std::format("{}w", getRegName());
 	case bsX86::REG_32:
 		if (type < REG_ESI) return std::format("e{}x", getRegName());
 		else if (type < REG_R8) return std::format("e{}", getRegName());
 		else return std::format("{}d", getRegName());
 	case bsX86::REG_64:
-		if (type < REG_ESI) return std::format("r{}x", getRegName());
+		if (type < REG_ESI || type == REG_ECX || type == REG_EDX) return std::format("r{}x", getRegName());
 		else if (type < REG_R8) return std::format("r{}", getRegName());
 		else return getRegName();
 	default:

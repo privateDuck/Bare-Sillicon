@@ -11,12 +11,12 @@ namespace bsX86
 	{
 		REG_EAX,
 		REG_EBX,
-		REG_ECX,
-		REG_EDX,
 		REG_ESI,
 		REG_EDI,
 		REG_EBP,
 		REG_ESP,
+		REG_ECX,
+		REG_EDX,
 		REG_R8,
 		REG_R9,
 		REG_R10,
@@ -65,7 +65,7 @@ namespace bsX86
 		RegType type;
 		RegSize size;
 
-		Register() : type(REG_EAX), size(REG_32) {}
+		Register() : type(REG_EAX), size(REG_64) {}
 		Register(RegType type, RegSize size) : type(type), size(size) {}
 
 		std::string to_string() const;

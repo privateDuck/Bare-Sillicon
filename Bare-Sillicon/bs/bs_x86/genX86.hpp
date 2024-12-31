@@ -36,7 +36,7 @@ namespace bsX86 {
 		void FreeTemporaryRegisters();
 
 		bool keepVariablesInRegisters = false;
-		Register EBP_REG = Register(REG_EBP, REG_32);
+		Register EBP_REG = Register(REG_EBP, REG_64);
 		//std::vector<RegType> registers;
 		std::unordered_set<RegType> registerSet;
 
